@@ -163,13 +163,25 @@ afs local unzip backup.zip --dest /restore
 
 ### Upload
 
+**⚠️ Security requirement**: Remote path MUST follow `date/hash/` format for cloud uploads. This prevents conflicts and organizes files by time.
+
 ```bash
-# Upload file
-afs cloud upload local_file.txt remote/path/ --provider s3
+# Upload file (REQUIRED format: YYYYMMDD/hash/filename)
+DATE=$(date +%Y%m%d)
+HASH=$(md5sum /path/file | cut -c1-8)
+afs cloud upload local_file.txt "${DATE}/${HASH}/file.txt" --provider s3
 
 # Upload directory with automatic compression
-afs cloud upload /data/logs/ remote/logs/ --zip --provider r2
+afs cloud upload /data/logs/ "20260301/a3b4c5d6/logs.zip" --zip --provider r2
+
+# Example: backup with timestamp
+afs cloud upload backup.zip "backups/$(date +%Y%m%d)/$(date +%H%M%S).zip"
 ```
+
+**Path format breakdown**:
+- `YYYYMMDD` - Date for organization (e.g., `20260301`)
+- `8-char-hash` - Short unique identifier (e.g., `a3b4c5d6`)
+- `filename` - Actual filename
 
 **Output**:
 ```json
@@ -465,6 +477,25 @@ All commands return standardized JSON for AI Agent parsing:
 
 ## Security
 
+### Cloud upload path requirement
+
+**MANDATORY**: All cloud uploads MUST use `YYYYMMDD/hash/` path format:
+
+```bash
+# Correct format
+afs cloud upload file.txt "20260301/a3b4c5d6/file.txt"
+
+# Incorrect (will be rejected)
+afs cloud upload file.txt "file.txt"
+afs cloud upload file.txt "uploads/file.txt"
+```
+
+**Reasons**:
+- Prevents path conflicts between concurrent operations
+- Organizes files by date for easy management
+- Hash provides uniqueness for same-day uploads
+- Avoids accidental file overwrites
+
 ### Sandbox mode
 
 Restrict operations to a specific directory:
@@ -491,11 +522,13 @@ afs local info /data --details
 # 2. Create compressed archive
 afs local zip /data --out backup.zip
 
-# 3. Upload to cloud
-afs cloud upload backup.zip backups/$(date +%Y%m%d)/
+# 3. Upload to cloud (REQUIRED: date/hash/ format)
+DATE=$(date +%Y%m%d)
+HASH=$(md5sum backup.zip | cut -c1-8)
+afs cloud upload backup.zip "backups/${DATE}/${HASH}/backup.zip"
 
 # 4. Verify upload
-afs cloud list backups/$(date +%Y%m%d)/ --limit 1
+afs cloud list "backups/${DATE}/" --limit 1
 ```
 
 ### Error log analysis workflow
